@@ -12,7 +12,7 @@ from termcolor import colored
 
 # --------------Database Connection--------------
 
-database = db.connect(user='deepak', passwd='', host='localhost', database='term2_project')
+database = db.connect(user='root', passwd='', host='localhost', database='term2project')
 sql = database.cursor()
 database.autocommit = True
 
