@@ -4,8 +4,8 @@ SET time_zone = "+00:00";
 
 -- ----------------------------------------------------
 
-CREATE DATABASE term2project;
-USE term2project;
+CREATE DATABASE store_management;
+USE store_management;
 
 -- ----------------------------------------------------
 
@@ -44,9 +44,7 @@ ALTER TABLE `products`
 -- ----------------------------------------------------
 
 INSERT INTO `credentials` (`password`) VALUES
-('2d93dc59f6eaf52c92e1a08b57e9282d');
-
--- term2project
+('8cd892b7b97ef9489ae4479d3f4ef0fc');
 
 INSERT INTO `products` (`id`, `name`, `price`, `stock`) VALUES
 ('p1', 'item1', '10', '50'),

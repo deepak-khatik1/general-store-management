@@ -12,7 +12,7 @@ from termcolor import colored
 
 # --------------Database Connection--------------
 
-database = db.connect(user='root', passwd='', host='localhost', database='term2project')
+database = db.connect(user='root', passwd='', host='localhost', database='store_management')
 sql = database.cursor()
 database.autocommit = True
 
@@ -612,6 +612,7 @@ if pd==password[0][0]:
 else:
     print('-'*50)
     print(color("Access Denied :(", "Error"))
+    print(color("\nTry default password : store\n", "Input"))
     input("\nPress Enter to try again")
     print('-'*50)
     clearConsole()
