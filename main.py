@@ -53,21 +53,20 @@ def pdf(file):
     pdf.output(f"{file}.pdf")
     os.remove(f"{file}.txt")
 
+
 def bill_id():
     sql.execute('SELECT bill_id FROM data;')
     ids = sql.fetchall()
     last_id = int(ids[-1][0])
     bill_id = last_id+1
-
     return str(bill_id)
 
 def products():
     data = []
-    sql.execute("SELECT id,name,price FROM products;")
+    sql.execute("SELECT id,name,price,stock FROM products;")
     table = sql.fetchall()
     for i in table:
         data.append(i)
-
     return data
 
 def data(condition):
@@ -76,7 +75,6 @@ def data(condition):
     table = sql.fetchall()
     for i in table:
         data.append(i)
-    
     return data
 
 def cart():
@@ -91,10 +89,14 @@ def cart():
                 if int(qnt):
                     item = (product, qnt)
                     cart.append(item)
-                
             except Exception as e:
                 print(color("Error! Enter details as (product_id,quantity)\n", 'Error'))    
     return cart
+
+def update_stock(update_list):
+    for i in update_list:
+        sql.execute("UPDATE products SET stock=%s WHERE id=%s;", (i[1], i[0]))
+    print(color("STOCK UPDATED", "Error"))
 
 def pID():
     data = []
@@ -102,7 +104,6 @@ def pID():
     pIDs = sql.fetchall()
     for i in pIDs:
         data.append(i[0])
-
     return data
 
 def color(text, color):
@@ -114,8 +115,8 @@ def color(text, color):
         output = colored(text, 'yellow', attrs=['bold'])
     elif color=='Input':
         output = colored(text, 'cyan', attrs=['bold'])
-    
     return output
+
 
 # ----------------Menu Functions----------------
 
@@ -128,9 +129,10 @@ def home():
     
     print('1 -> Generate Bill')
     print('2 -> View Products')
-    print('3 -> Manage Products')
-    print('4 -> Search Records / Save Invoice')
-    print('5 -> Change Password')
+    print('3 -> Stock Report')
+    print('4 -> Manage Products')
+    print('5 -> Search Records / Save Invoice')
+    print('6 -> Change Password')
     print('0 -> Exit')
 
     print()
@@ -143,25 +145,32 @@ def generate_bill():
     crt = cart()
     bill_table = []
     Amount = 0
+    remaining_stock_list = []
+    reject_list = []
 
     for i in crt:
         for j in prd:
-                if i[0]==j[0]:
+            if i[0]==j[0]:
+                if int(i[1])>int(j[3]):
+                    reject_list.append(i[0])
+                else:
                     name = str(j[1])
                     price = int(j[2])
                     qnt = int(i[1])
                     amt = price*qnt
                     Amount += amt
 
+                    stock_update = (j[0],str(int(j[3])-int(i[1])))
+                    remaining_stock_list.append(stock_update)
+
                     item = [name, price, qnt, amt]
-                    bill_table.append(item)
-            
+                    bill_table.append(item)  
+                          
     IDs = pID()
     cIDs = []
     for i in crt:
         cIDs.append(i[0])
 
-    reject_list = []
     for i in cIDs:
         if i not in IDs:
             reject_list.append(i)
@@ -176,6 +185,7 @@ def generate_bill():
     with open('draft.txt', 'r') as f:
         draft = f.read()
     
+
     draft = draft.replace('<<DATE>>'    ,str(Date()))
     draft = draft.replace('<<TIME>>'    ,str(Time()))
     draft = draft.replace('<<INVOICE>>' ,str(bill_id()))
@@ -184,7 +194,7 @@ def generate_bill():
     draft = draft.replace('<<AMOUNT>>'  ,str(Amount))
     Invoice = draft
 
-    file = f'auto_bills\Invoice_{bill_id()}'
+    file = rf'auto_bills\Invoice_{bill_id()}'
     with open(f"{file}.txt", 'w') as f:
         f.write(Invoice)
 
@@ -193,13 +203,16 @@ def generate_bill():
 
     pdf(file)
 
-    sql.execute("INSERT INTO data VALUES(%s, %s, %s, %s, %s, %s);", (Date(), Time(), bill_id(), Name, Phone, Invoice_binary))
+    sql.execute("INSERT INTO data VALUES(%s, %s, %s, %s, %s, %s);", 
+               (Date(), Time(), bill_id(), Name, Phone, Invoice_binary))
+
+    update_stock(remaining_stock_list)
 
     return reject_list
 
 # ------
 def view_products():
-    head = ['Product ID', 'Name', 'Per item cost']
+    head = ['Product ID', 'Name', 'Per item cost', 'Stock']
     table = products()
     if len(table)!=0:
         print(color("Details of all the products : \n", 'Input'))
@@ -208,30 +221,53 @@ def view_products():
         print(color("No Products Found", 'Warning'))
 
 # ------
+
+def stock_report():
+    threshold = 3
+    reorder_list = []
+
+    for product in products():
+        if int(product[3])<threshold:
+            reorder_list.append(product)
+
+    if len(reorder_list)>0:
+        head = ['Product ID', 'Name', 'Per item cost', 'Stock']
+        table = reorder_list
+
+        print(color("Following products are below threshold quantity(3) and need to be reordered:\n", 'Error'))
+
+        print(color(tabulize(head, table), 'Text'))
+    else:
+        print(color("Stock is sufficient. Nothing to reorder", 'Warning'))
+
+
+# ------
 def manage_products():
     
     def add():
         n = int(input(color('\nEnter the number of Products you want to add: ', 'Input')))
-        print(color('\nEnter details in form - << product_id,product_name,price >>', 'Text'))
+        print(color('\nEnter details in form - << product_id,product_name,price,stock >>', 'Text'))
         print('-'*50)
 
         rejection=False
         success=0
 
         products = []
+
         i = 0
         while i<n:
             try:
                 a = input(color(f'Enter details of product {i+1}: ', 'Input'))
-                x,y,z = a.split(',')
+                x,y,z,s = a.split(',')
                 if int(z):
-                    item = (x,y,z) 
+                    item = (x,y,z,s) 
                     products.append(item)
                     i+=1
                 
             except Exception as e:
                 print(color("Error! Enter details in correct format\n", 'Error'))
-                
+             
+   
         print('-'*50)
         IDs = pID()
         rej_lst = []
@@ -240,8 +276,8 @@ def manage_products():
                 rej_lst.append(i[0])
                 rejection = True
             else:
-                sql.execute('''INSERT INTO products (id,name,price)
-                            VALUES(%s, %s, %s);''', (i[0], i[1], i[2]))
+                sql.execute('''INSERT INTO products (id,name,price,stock)
+                            VALUES(%s, %s, %s, %s);''', (i[0], i[1], i[2], i[3]))
                 success += 1
 
         return rejection,success,rej_lst,products
@@ -254,27 +290,27 @@ def manage_products():
         print('-'*50)
         while True:
             a = input(color('Enter Product ID : ', 'Input'))
-
             if a == 'n':
                 break
             else:
                 edit_list.append(a)
 
         print('-'*50)
-        
+  
         update_list = []
         for i in edit_list:
             for j in prd:
                 if i == j[0]:
                     while True:
                         try:
-                            a = input(color(f"Enter new (name,price) for '{j[0]}' ({j[1]},{j[2]}): ", 'Input'))
-                            name, price = a.split(',')
-                            if int(price):
-                                item = (name, price, i)
+                            a = input(color(
+                            f"Enter new (name,price,stock) for '{j[0]}' ({j[1]},{j[2]},{j[3]}): ", 'Input'))
+
+                            name, price, stock = a.split(',')
+                            if int(price) and int(stock):
+                                item = (name, price, stock, i)
                                 update_list.append(item)
-                                break
-                            
+                                break 
                         except Exception as e:
                             print(color("Error! Enter details in correct format\n", 'Error'))
 
@@ -285,9 +321,9 @@ def manage_products():
                 reject_list.append(i)
 
         for i in update_list:
-            sql.execute("UPDATE products SET name=%s, price=%s WHERE id=%s;",
-                       (i[0], i[1], i[2]))        
-        
+            sql.execute("UPDATE products SET name=%s, price=%s, stock=%s WHERE id=%s;",
+                       (i[0], i[1], i[2], i[3]))
+
         return reject_list, update_list, edit_list 
 
     while True:
@@ -306,11 +342,10 @@ def manage_products():
             print('_'*50)
             try:
                 R, S, R_lst, Prds= add()
-
                 if R:
                     print(color(f"{R_lst} already assigned, use different Product ID", 'Text'))
-                    print(color(f"\n{S} out of {len(Prds)} products added SUCCESSFULLY", 'Success'))
-                
+                    print(color(f"\n{S} out of {len(Prds)} products added SUCCESSFULLY",
+                                'Success'))
                 elif not(R):
                     print(color('All products added SUCCESSFULLY', 'Success'))
 
@@ -324,7 +359,6 @@ def manage_products():
         elif choice=='2':
             try:
                 R, S, T= edit()
-
                 if len(R)>0 and len(S)>0:
                     print('-'*50)
                     print(color(f"{R} NOT FOUND", 'Warning'))
@@ -335,7 +369,8 @@ def manage_products():
                     print('-'*50)
                     print(color("All products edited SUCCESSFULLY", 'Success'))
                 else:
-                   print(color(f"\n{len(S)} out of {len(T)} products edited SUCCESSFULLY", 'Success'))
+                   print(color(f"\n{len(S)} out of {len(T)} products edited SUCCESSFULLY",
+                               'Success'))
 
             except ValueError:
                 print(color("\nError !!!  Try Again", "Error"))                
@@ -349,6 +384,7 @@ def manage_products():
         
         else:
             clearConsole()
+
 
 # ------
 def search_records():
@@ -399,13 +435,15 @@ def search_records():
         try:
             sql.execute(f"SELECT costumer_name, invoice FROM data WHERE bill_id = {_id};")
             data = sql.fetchall()
+
             name = data[0][0]
             binary = data[0][1]
 
-            file = f"saved_bills\({name})_Invoice_{_id}"
+            file = rf"saved_bills\({name})_Invoice_{_id}"
             with open(f"{file}.bin", 'wb') as f:
                 f.write(binary)
             os.rename(f"{file}.bin", f"{file}.txt")
+
 
             if os.path.exists(f"{file}.pdf")==False:
                 pdf(file)
@@ -436,6 +474,7 @@ def search_records():
             print('-'*50)
             a = input(color('Enter Date in form - << 01-Jan-2001 >> : ', 'Input'))
             src_by_date(a)
+
             print('-'*50)
             input("\nPress Enter to choose again...")
             clearConsole()
@@ -444,6 +483,7 @@ def search_records():
             print('-'*50)
             a = input(color('Enter Name: ', 'Input'))
             src_by_name(a)
+
             print('-'*50)
             input("\nPress Enter to choose again...")
             clearConsole()
@@ -451,22 +491,31 @@ def search_records():
         elif choice=='3':
             print('-'*50)
             a = input(color('Enter Invoice ID: ', 'Input'))
+
             try:
                 src_by_invoice(a)
+
             except Exception as e:
                 print(color("\nInvalid ID... Try again :(", 'Error'))
+
             print('-'*50)
+
             input("\nPress Enter to choose again...")
             clearConsole()
+
 
         elif choice=='4':
             print('-'*50)
             a = input(color('Enter Contact Number: ', 'Input'))
+
             try:
                 src_by_phone(a)
+
             except Exception as e:
                 print(color("\nInvalid Number... Try again :(", 'Error'))
+
             print('-'*50)
+
             input("\nPress Enter to choose again...")
             clearConsole()
 
@@ -474,6 +523,7 @@ def search_records():
             print('-'*50)
             a = input(color('Enter Invoice ID: ', 'Input'))
             get_invoice(a)
+
             print('-'*50)
             input("\nPress Enter to choose again...")
             clearConsole()
@@ -511,6 +561,7 @@ if pd==password[0][0]:
     while True:
         home()
         choice = input('Enter your choice : ')
+
         
         if choice=='1':
             print('\n','/'*50,'\n', sep='')
@@ -532,16 +583,22 @@ if pd==password[0][0]:
             view_products()
             print('\n','\\'*50, sep='')
             input('\nPress Enter to choose again...')
-
+        
         elif choice=='3':
+            print('\n','/'*50,'\n', sep='')
+            stock_report()
+            print('\n','\\'*50, sep='')
+            input('\nPress Enter to choose again...')
+
+        elif choice=='4':
             clearConsole()
             manage_products()
             
-        elif choice=='4':
+        elif choice=='5':
             clearConsole()
             search_records()
 
-        elif choice=='5':
+        elif choice=='6':
             print('\n','/'*50,'\n', sep='')
             change_password()
             input('\nPress Enter to choose again...')
