@@ -4,6 +4,7 @@ SET time_zone = "+00:00";
 
 -- ----------------------------------------------------
 
+DROP DATABASE IF EXISTS term2_project;
 DROP DATABASE IF EXISTS store_management;
 CREATE DATABASE store_management;
 USE store_management;
